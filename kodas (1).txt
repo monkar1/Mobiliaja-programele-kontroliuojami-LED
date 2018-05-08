@@ -1,0 +1,131 @@
+int switchState = LOW;
+int prevSwitchState = LOW;
+int redPin = 13;
+int greenPin = 12;
+int bluePin = 11;
+
+long lastDebounceTime = 0;  // the last time the output pin was toggled
+long debounceDelay = 100;    // the debounce time; increase if the output flickers
+
+
+void setup() {
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
+                                                                             
+  digitalWrite(redPin, 0);
+  digitalWrite(greenPin, 0);
+  digitalWrite(bluePin, 0);
+  Serial.begin(9600);
+
+}
+
+void loop() 
+{
+  /*---------------------------------------------------------------------------
+     Pirmiausia nuskaitome is serial ar reikia ka nors ijungti arba isjungti:
+  ----------------------------------------------------------------------------*/
+  if(Serial.available() > 0)
+  {
+      String str = Serial.readStringUntil('\n');
+
+      String red = getValue(str, '-', 0);
+      String green = getValue(str, '-', 1);
+      String blue = getValue(str, '-', 2);
+      setColor(red.toInt(), green.toInt(), blue.toInt());
+      Serial.println(str);      
+  }
+  
+}
+String getValue(String data, char separator, int index)
+{
+  int found = 0;
+  int strIndex[] = {0, -1};
+  int maxIndex = data.length()-1;
+
+  for(int i=0; i<=maxIndex && found<=index; i++){
+    if(data.charAt(i)==separator || i==maxIndex){
+        found++;
+        strIndex[0] = strIndex[1]+1;
+        strIndex[1] = (i == maxIndex) ? i+1 : i;
+    }
+  }
+
+  return found>index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
+
+void setColor(int redValue, int greenValue, int blueValue) {
+  analogWrite(redPin, redValue);
+  analogWrite(greenPin, greenValue);
+  analogWrite(bluePin, blueValue);
+}
+
+
+index.js
+
+var express = require('express');
+var router = express.Router();
+var sqlite3 = require('sqlite3');
+var path = require('path');
+var favicon = require('serve-favicon');
+var logger = require('morgan');
+var cookieParser = require('cookie-parser');
+var bodyParser = require('body-parser');
+router.get('/', function(req, res) 
+{   
+    var db = req.db;
+    res.render('index', { title: 'LED', data:leds });
+    
+});
+
+
+router.post('/SetLed', function(req, res) 
+{
+    var cmd = req.body;
+    
+    var msg = cmd.R + "-" + cmd.G + "-" + cmd.B;
+    spWrite(msg);
+    
+    
+    var msg2 = msg.split("-");
+    
+    var red = msg2[0];
+    var green = msg2[1];
+    var blue = msg2[2];
+    
+    console.log("r" + red);
+    console.log("g" + green);
+    console.log("b" + blue);
+    
+
+        db.run(`insert into leds (red, green, blue) values (`+red +`,` + green + `,` + blue + `);`, function(updateError)
+        {
+            if(updateError)
+            {
+                console.log("DB KLAIDA! ", updateError);
+            }
+        });
+    
+      
+    res.status(200).send('OK');
+});
+
+router.post('/GetLed', function(req, res) 
+{   
+    var db = req.db;
+    var data = req.body;
+    
+    getLed(db, data.ID, function(led)
+    {
+        if(led.length == 1)
+        {
+            res.json(led[0]);
+        }
+        else
+        {
+            res.status(500).send('No LED found!');
+        }
+    });
+});
+
+module.exports = router;
